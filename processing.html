@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<style>
+input#bottompanel{
+height:20px;
+width:50px;
+}
+input{
+width:90px;
+}
+#sidepanel{
+font-size:25px;
+}
+#bottompanel{
+font-size:12px;
+margin-left:8px;
+margin-top:-270px;
+}
+button,input{
+font-size:inherit;
+}
+
+body{
+overflow:hidden}
+</style>
+<body style=margin:0px>
+<canvas width=0 height=0></canvas>
+<img id=img src=img.png style=display:none></img>
+<div id=sidepanel style="position:relative;left:800px;top:-800px;">
+Simple affine filter:<br>
+Multiplication matrix:<br>
+<input type=number step=0.01 placeholder=1></input>,
+<input type=number step=0.01 placeholder=0></input>,
+<input type=number step=0.01 placeholder=0></input><br>
+<input type=number step=0.01 placeholder=0></input>,
+<input type=number step=0.01 placeholder=1></input>,
+<input type=number step=0.01 placeholder=0></input><br>
+<input type=number step=0.01 placeholder=0></input>,
+<input type=number step=0.01 placeholder=0></input>,
+<input type=number step=0.01 placeholder=1></input><br>
+Addition filter:<br>
+<input type=number step=0.01 placeholder=0></input>,
+<input type=number step=0.01 placeholder=0></input>,
+<input type=number step=0.01 placeholder=0></input>
+<br><br>
+<button onclick=process()>Set Filter</button>
+</div>
+<div id=bottompanel>
+<div style=font-size:25px>Complex filter:</div><br>
+</div>
+<script>
+var worker=new Worker("worker.js");
+var newData;
+var canvas=document.querySelector("canvas");
+var ctx=canvas.getContext("2d");
+var complexInputString="";
+var colors = ["R","G","B"];
+var imgData;
+document.body.onload=function(){
+document.getElementById("sidepanel").style.left = String(document.getElementById("img").width+20)+"px";
+document.getElementById("sidepanel").style.top = "-"+String(document.getElementById("img").height)+"px";
+var img=document.getElementById("img");
+canvas.width=img.width;
+canvas.height=img.height;
+ctx.drawImage(img,0,0);
+};
+complexInputString += "<div style='width:1660px;margin-left:40px;text-align:justify'>";
+for(var i=0;i<27;i++){
+complexInputString += colors[i % 3]+String(Math.floor(i/3)+1)+" ";
+}
+complexInputString += "+vec";
+complexInputString += "<span style='display:inline-block;width:100%;height:0em'></span></div>"
+for(var i=0;i<3;i++){
+complexInputString += colors[i]+":   ";
+for(var j=0;j<28;j++){
+complexInputString += ((j>0) ? "," : "")+"<input type=number style='width:50px;height:22px' step=0.01 placeholder=0></input>";
+}
+complexInputString += "<br>"
+}
+complexInputString += "<br><button style=font-size:20px onclick=complexProcess()>Filter</button>";
+
+document.getElementById("bottompanel").innerHTML += complexInputString;
+function process(){
+var filtMult=[
+[1,0,0],
+[0,0.6,-0.4],
+[0,-0.4,0.6]
+];
+var addFilt=[0,0,0];
+var inputs=document.querySelectorAll("input");
+for(var i=0;i<3;i++){
+for(var j=0;j<3;j++){
+	filtMult[i][j]=Number(inputs[i*3+j].value);
+}
+	addFilt[i] = Math.floor(Number(inputs[9+i].value)*255);
+}
+console.log(filtMult);
+console.time(1);
+imgData=ctx.getImageData(0,0,img.width,img.height).data;
+newData=new ImageData(img.width,img.height);
+worker.postMessage("filtMult: "+JSON.stringify(filtMult));
+worker.postMessage("addFilt: "+JSON.stringify(addFilt));
+worker.postMessage(imgData);
+worker.postMessage("startaffine");
+console.timeEnd(1);
+}
+worker.addEventListener("message",function(message){
+	console.time(2);
+	newData.data.set(message.data);
+	ctx.putImageData(newData,0,0);
+	console.timeEnd(2);
+});
+function complexProcess(){
+var inputs=document.querySelectorAll("input");
+var complexFilter=[
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+]
+for(var i=0;i<3;i++){
+for(var j=0;j<28;j++){
+complexFilter[i][j] = Number(inputs[12+28*i+j].value);
+}
+complexFilter[i][27] *= 255;
+}
+newData=new ImageData(img.width,img.height);
+imgData=ctx.getImageData(0,0,img.width,img.height).data;
+worker.postMessage("compFilt: "+JSON.stringify(complexFilter));
+worker.postMessage("width: "+JSON.stringify(img.width));
+worker.postMessage("height: "+JSON.stringify(img.height));
+worker.postMessage(imgData);
+worker.postMessage("startcomplex");
+console.log(complexFilter);
+}
+</script>
